@@ -1,0 +1,75 @@
+//@version=5
+indicator("Swing Alert Bot", overlay=true)
+
+// ── Inputs ────────────────────────────────────────────────────────────────
+lb      = input.int(5,       title="Swing Lookback (bars)", minval=2, maxval=20)
+symbol  = input.symbol("",   title="Symbol override (leave blank = chart symbol)")
+wh_url  = input.string("",   title="Webhook URL (paste your full URL here)")
+
+// Swing direction per timeframe
+h4_dir  = input.string("High", title="H4  direction",  options=["High","Low"])
+h1_dir  = input.string("High", title="H1  direction",  options=["High","Low"])
+m30_dir = input.string("High", title="30m direction",  options=["High","Low"])
+m15_dir = input.string("High", title="15m direction",  options=["High","Low"])
+m5_dir  = input.string("High", title="5m  direction",  options=["High","Low"])
+
+// ── Helper: get last swing from a higher timeframe ─────────────────────────
+f_swing(tf, dir) =>
+    if dir == "High"
+        raw = request.security(syminfo.tickerid, tf, ta.pivothigh(high, lb, lb))
+        ta.valuewhen(not na(raw), raw, 0)
+    else
+        raw = request.security(syminfo.tickerid, tf, ta.pivotlow(low, lb, lb))
+        ta.valuewhen(not na(raw), raw, 0)
+
+// ── Fetch swing levels ─────────────────────────────────────────────────────
+h4_level  = f_swing("240", h4_dir)
+h1_level  = f_swing("60",  h1_dir)
+m30_level = f_swing("30",  m30_dir)
+m15_level = f_swing("15",  m15_dir)
+m5_level  = f_swing("5",   m5_dir)
+
+// ── Plot levels ────────────────────────────────────────────────────────────
+plot(h4_level,  title="H4 Swing",  color=h4_dir=="High"  ? color.green : color.red,   linewidth=2, style=plot.style_line)
+plot(h1_level,  title="H1 Swing",  color=h1_dir=="High"  ? color.green : color.red,   linewidth=2, style=plot.style_line)
+plot(m30_level, title="30m Swing", color=m30_dir=="High" ? color.green : color.red,   linewidth=1, style=plot.style_line)
+plot(m15_level, title="15m Swing", color=m15_dir=="High" ? color.green : color.red,   linewidth=1, style=plot.style_line)
+plot(m5_level,  title="5m Swing",  color=m5_dir=="High"  ? color.teal  : color.orange, linewidth=1, style=plot.style_line)
+
+// ── Labels on the right side ───────────────────────────────────────────────
+if barstate.islast
+    if not na(h4_level)
+        label.new(bar_index + 2, h4_level,  "H4 "  + h4_dir,  style=label.style_label_left, color=h4_dir=="High"  ? color.green : color.red,   textcolor=color.white, size=size.small)
+    if not na(h1_level)
+        label.new(bar_index + 2, h1_level,  "H1 "  + h1_dir,  style=label.style_label_left, color=h1_dir=="High"  ? color.green : color.red,   textcolor=color.white, size=size.small)
+    if not na(m30_level)
+        label.new(bar_index + 2, m30_level, "30m " + m30_dir, style=label.style_label_left, color=m30_dir=="High" ? color.green : color.red,   textcolor=color.white, size=size.small)
+    if not na(m15_level)
+        label.new(bar_index + 2, m15_level, "15m " + m15_dir, style=label.style_label_left, color=m15_dir=="High" ? color.green : color.red,   textcolor=color.white, size=size.small)
+    if not na(m5_level)
+        label.new(bar_index + 2, m5_level,  "5m "  + m5_dir,  style=label.style_label_left, color=m5_dir=="High"  ? color.teal  : color.orange, textcolor=color.white, size=size.small)
+
+// ── Alert conditions ───────────────────────────────────────────────────────
+sym = syminfo.ticker
+
+h4_touch  = h4_dir  == "High" ? ta.crossover(close, h4_level)  : ta.crossunder(close, h4_level)
+h1_touch  = h1_dir  == "High" ? ta.crossover(close, h1_level)  : ta.crossunder(close, h1_level)
+m30_touch = m30_dir == "High" ? ta.crossover(close, m30_level) : ta.crossunder(close, m30_level)
+m15_touch = m15_dir == "High" ? ta.crossover(close, m15_level) : ta.crossunder(close, m15_level)
+m5_touch  = m5_dir  == "High" ? ta.crossover(close, m5_level)  : ta.crossunder(close, m5_level)
+
+// ── Webhook alerts — each fires a JSON payload to your server ──────────────
+if h4_touch
+    alert('{"symbol":"' + sym + '","timeframe":"240","direction":"' + str.lower(h4_dir)  + '","price":"' + str.tostring(close, "#.#####") + '","time":"{{time}}"}', alert.freq_once_per_bar)
+
+if h1_touch
+    alert('{"symbol":"' + sym + '","timeframe":"60","direction":"' + str.lower(h1_dir)   + '","price":"' + str.tostring(close, "#.#####") + '","time":"{{time}}"}', alert.freq_once_per_bar)
+
+if m30_touch
+    alert('{"symbol":"' + sym + '","timeframe":"30","direction":"' + str.lower(m30_dir)  + '","price":"' + str.tostring(close, "#.#####") + '","time":"{{time}}"}', alert.freq_once_per_bar)
+
+if m15_touch
+    alert('{"symbol":"' + sym + '","timeframe":"15","direction":"' + str.lower(m15_dir)  + '","price":"' + str.tostring(close, "#.#####") + '","time":"{{time}}"}', alert.freq_once_per_bar)
+
+if m5_touch
+    alert('{"symbol":"' + sym + '","timeframe":"5","direction":"' + str.lower(m5_dir)    + '","price":"' + str.tostring(close, "#.#####") + '","time":"{{time}}"}', alert.freq_once_per_bar)
